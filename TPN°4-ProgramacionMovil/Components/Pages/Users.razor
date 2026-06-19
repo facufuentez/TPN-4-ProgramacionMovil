@@ -1,0 +1,214 @@
+@page "/users"
+@using TPN_4_ProgramacionMovil.Models
+@using TPN_4_ProgramacionMovil.Services
+@inject UserService UserService
+
+<h1>Users</h1>
+
+
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (users == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="ShowCreateForm">Add New User</button>
+
+    @if (showForm)
+    {
+        <div class="card mb-3 p-3">
+            <h4>@(editingUser ? "Edit User" : "New User")</h4>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Email" @bind="formEmail" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Username" @bind="formUsername" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Password" type="password" @bind="formPassword" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="First Name" @bind="formFirstname" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Last Name" @bind="formLastname" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Phone" @bind="formPhone" />
+            </div>
+            <div>
+                <button class="btn btn-success me-2" @onclick="SaveUser">Save</button>
+                <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+            </div>
+        </div>
+    }
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Id</td>
+                    <td>@user.Username</td>
+                    <td>@user.Email</td>
+                    <td>@(user.Name?.Firstname ?? "") @(user.Name?.Lastname ?? "")</td>
+                    <td>@user.Phone</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" @onclick="() => EditUser(user)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(user.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<User>? users;
+    private bool showForm;
+    private bool editingUser;
+    private int editingId;
+    private string? errorMessage;
+
+    private string formEmail = "";
+    private string formUsername = "";
+    private string formPassword = "";
+    private string formFirstname = "";
+    private string formLastname = "";
+    private string formPhone = "";
+    private int nextId = 11;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            users = await UserService.GetAllAsync();
+            if (users.Count > 0)
+                nextId = users.Max(u => u.Id) + 1;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        editingUser = false;
+        editingId = 0;
+        formEmail = "";
+        formUsername = "";
+        formPassword = "";
+        formFirstname = "";
+        formLastname = "";
+        formPhone = "";
+        showForm = true;
+    }
+
+    private void EditUser(User user)
+    {
+        editingUser = true;
+        editingId = user.Id;
+        formEmail = user.Email;
+        formUsername = user.Username;
+        formPassword = user.Password;
+        formFirstname = user.Name?.Firstname ?? "";
+        formLastname = user.Name?.Lastname ?? "";
+        formPhone = user.Phone;
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+    }
+
+    private async Task SaveUser()
+    {
+        try
+        {
+            var user = new User
+            {
+                Email = formEmail,
+                Username = formUsername,
+                Password = formPassword,
+                Name = new UserName
+                {
+                    Firstname = formFirstname,
+                    Lastname = formLastname
+                },
+                Phone = formPhone
+            };
+
+            if (editingUser)
+            {
+                var result = await UserService.UpdateAsync(editingId, user);
+                if (result != null)
+                {
+                    result.Id = editingId;
+                    var idx = users!.FindIndex(u => u.Id == editingId);
+                    if (idx >= 0)
+                        users[idx] = result;
+                }
+                else
+                {
+                    var idx = users!.FindIndex(u => u.Id == editingId);
+                    if (idx >= 0)
+                    {
+                        user.Id = editingId;
+                        users[idx] = user;
+                    }
+                }
+            }
+            else
+            {
+                var result = await UserService.CreateAsync(user);
+                if (result != null)
+                {
+                    result.Id = nextId++;
+                    users!.Add(result);
+                }
+                else
+                {
+                    user.Id = nextId++;
+                    users!.Add(user);
+                }
+            }
+
+            showForm = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteUser(int id)
+    {
+        try
+        {
+            await UserService.DeleteAsync(id);
+            users!.RemoveAll(u => u.Id == id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}

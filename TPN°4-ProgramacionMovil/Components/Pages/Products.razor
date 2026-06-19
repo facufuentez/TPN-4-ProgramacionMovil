@@ -1,0 +1,202 @@
+@page "/products"
+@using TPN_4_ProgramacionMovil.Models
+@using TPN_4_ProgramacionMovil.Services
+@inject ProductService ProductService
+
+<h1>Products</h1>
+
+
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (products == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="ShowCreateForm">Add New Product</button>
+
+    @if (showForm)
+    {
+        <div class="card mb-3 p-3">
+            <h4>@(editingProduct ? "Edit Product" : "New Product")</h4>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Title" @bind="formTitle" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Price" type="number" step="0.01" @bind="formPrice" />
+            </div>
+            <div class="mb-2">
+                <textarea class="form-control" placeholder="Description" @bind="formDescription"></textarea>
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Category" @bind="formCategory" />
+            </div>
+            <div class="mb-2">
+                <input class="form-control" placeholder="Image URL" @bind="formImage" />
+            </div>
+            <div>
+                <button class="btn btn-success me-2" @onclick="SaveProduct">Save</button>
+                <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+            </div>
+        </div>
+    }
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in products)
+            {
+                <tr>
+                    <td>@product.Id</td>
+                    <td>@product.Title</td>
+                    <td>@product.Price.ToString("C")</td>
+                    <td>@product.Category</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" @onclick="() => EditProduct(product)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteProduct(product.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Product>? products;
+    private bool showForm;
+    private bool editingProduct;
+    private int editingId;
+    private string? errorMessage;
+
+    private string formTitle = "";
+    private decimal formPrice;
+    private string formDescription = "";
+    private string formCategory = "";
+    private string formImage = "";
+    private int nextId = 21;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await ProductService.GetAllAsync();
+            if (products.Count > 0)
+                nextId = products.Max(p => p.Id) + 1;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        editingProduct = false;
+        editingId = 0;
+        formTitle = "";
+        formPrice = 0;
+        formDescription = "";
+        formCategory = "";
+        formImage = "";
+        showForm = true;
+    }
+
+    private void EditProduct(Product product)
+    {
+        editingProduct = true;
+        editingId = product.Id;
+        formTitle = product.Title;
+        formPrice = product.Price;
+        formDescription = product.Description;
+        formCategory = product.Category;
+        formImage = product.Image;
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+    }
+
+    private async Task SaveProduct()
+    {
+        try
+        {
+            var product = new Product
+            {
+                Title = formTitle,
+                Price = formPrice,
+                Description = formDescription,
+                Category = formCategory,
+                Image = formImage
+            };
+
+            if (editingProduct)
+            {
+                var result = await ProductService.UpdateAsync(editingId, product);
+                if (result != null)
+                {
+                    result.Id = editingId;
+                    var idx = products!.FindIndex(p => p.Id == editingId);
+                    if (idx >= 0)
+                        products[idx] = result;
+                }
+                else
+                {
+                    var idx = products!.FindIndex(p => p.Id == editingId);
+                    if (idx >= 0)
+                    {
+                        product.Id = editingId;
+                        products[idx] = product;
+                    }
+                }
+            }
+            else
+            {
+                var result = await ProductService.CreateAsync(product);
+                if (result != null)
+                {
+                    result.Id = nextId++;
+                    products!.Add(result);
+                }
+                else
+                {
+                    product.Id = nextId++;
+                    products!.Add(product);
+                }
+            }
+
+            showForm = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteProduct(int id)
+    {
+        try
+        {
+            await ProductService.DeleteAsync(id);
+            products!.RemoveAll(p => p.Id == id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}
